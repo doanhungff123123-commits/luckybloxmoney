@@ -1,11 +1,7 @@
--- =====================================
---   HungDao9999 | Galaxy Auto Waypoint (FIXED)
--- =====================================
+-- HungDao9999 | Galaxy Tool (FINAL)
 
--- ========= CONFIG =========
-local HOLD_TIME = 2
+local HOLD_TIME = 1.5
 local CHECK_RADIUS = 3
-local KEYWORDS = {"money", "cash", "lucky", "block", "+"}
 
 local POINTS = {
 	Vector3.new(424, -14, -337.25),
@@ -13,170 +9,95 @@ local POINTS = {
 	Vector3.new(2571.35, -7.7, -33.7)
 }
 
--- ========= SERVICES =========
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
-local placeId = game.PlaceId
 
--- ========= SAVE STEP =========
 getgenv().STEP = getgenv().STEP or 1
+getgenv().RUNNING = false
 
--- ========= CHARACTER =========
+-- ===== GUI =====
+local gui = Instance.new("ScreenGui", PlayerGui)
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.fromOffset(260,120)
+frame.Position = UDim2.fromScale(0.37,0.4)
+frame.BackgroundColor3 = Color3.fromRGB(15,0,40)
+frame.Active, frame.Draggable = true, true
+Instance.new("UICorner", frame).CornerRadius = UDim.new(0,14)
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1,0,0,40)
+title.BackgroundTransparency = 1
+title.Text = "🌌 HungDao9999"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+title.TextColor3 = Color3.fromRGB(180,140,255)
+
+local status = Instance.new("TextLabel", frame)
+status.Position = UDim2.new(0,0,0,40)
+status.Size = UDim2.new(1,0,0,40)
+status.BackgroundTransparency = 1
+status.Text = "Idle"
+status.Font = Enum.Font.Gotham
+status.TextSize = 14
+status.TextColor3 = Color3.fromRGB(0,255,200)
+
+local btn = Instance.new("TextButton", frame)
+btn.Position = UDim2.new(0.15,0,0.7,0)
+btn.Size = UDim2.new(0.7,0,0.22,0)
+btn.Text = "▶ START"
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 16
+btn.BackgroundColor3 = Color3.fromRGB(80,40,140)
+btn.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", btn)
+
+-- ===== LOGIC =====
 local function getChar()
 	local c = player.Character or player.CharacterAdded:Wait()
 	return c, c:WaitForChild("HumanoidRootPart"), c:WaitForChild("Humanoid")
 end
 
--- ========= NOCLIP =========
-local function noclip(char)
-	for _,v in pairs(char:GetDescendants()) do
-		if v:IsA("BasePart") then
-			v.CanCollide = false
-		end
-	end
-end
-
--- ========= FREEZE HARD =========
-local function freeze(hrp)
-	hrp.Anchored = true
-end
-
-local function unfreeze(hrp)
-	hrp.Anchored = false
-end
-
--- ========= GUI =========
-local gui = Instance.new("ScreenGui", PlayerGui)
-gui.ResetOnSpawn = false
-gui.Name = "HungDaoGalaxy"
-
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(320,170)
-frame.Position = UDim2.fromScale(0.35,0.35)
-frame.BackgroundColor3 = Color3.fromRGB(15,0,40)
-frame.Active = true
-frame.Draggable = true
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0,16)
-
-local stroke = Instance.new("UIStroke", frame)
-stroke.Thickness = 3
-
-task.spawn(function()
-	local h = 0
-	while true do
-		h = (h + 0.002) % 1
-		stroke.Color = Color3.fromHSV(h,1,1)
-		task.wait()
-	end
-end)
-
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.fromScale(1,0.35)
-title.BackgroundTransparency = 1
-title.Text = "🌌 HungDao9999 🌌"
-title.Font = Enum.Font.GothamBold
-title.TextSize = 26
-title.TextColor3 = Color3.fromRGB(200,150,255)
-
-local status = Instance.new("TextLabel", frame)
-status.Position = UDim2.fromScale(0,0.4)
-status.Size = UDim2.fromScale(1,0.6)
-status.BackgroundTransparency = 1
-status.TextWrapped = true
-status.Font = Enum.Font.Gotham
-status.TextSize = 14
-status.TextColor3 = Color3.fromRGB(0,255,200)
-
--- ========= TEXT CHECK =========
-local function matchText(t)
-	t = t:lower()
-	for _,k in ipairs(KEYWORDS) do
-		if t:find(k) then return true end
-	end
-end
-
--- ========= CHECKPOINT LOGIC =========
 local function waitCheckpoint(hrp, hum, point)
 	local start = tick()
-	local gotText = false
-
-	local conn = PlayerGui.DescendantAdded:Connect(function(v)
-		if v:IsA("TextLabel") and matchText(v.Text) then
-			gotText = true
-		end
-	end)
-
 	while tick() - start < HOLD_TIME do
-		if hum.Health <= 0 then
-			conn:Disconnect()
-			return false
-		end
-
+		if hum.Health <= 0 then return false end
 		if (hrp.Position - point).Magnitude > CHECK_RADIUS then
-			conn:Disconnect()
 			return false
 		end
-
-		if gotText then
-			conn:Disconnect()
-			return true
-		end
-
 		task.wait(0.05)
 	end
-
-	conn:Disconnect()
 	return true
 end
 
--- ========= SERVER HOP (FIXED) =========
-local tried = {}
+btn.MouseButton1Click:Connect(function()
+	if getgenv().RUNNING then return end
+	getgenv().RUNNING = true
 
-local function serverHop()
-	while true do
-		local data = HttpService:JSONDecode(
-			game:HttpGet("https://games.roblox.com/v1/games/"..placeId.."/servers/Public?limit=100")
-		)
+	task.spawn(function()
+		while getgenv().STEP <= #POINTS do
+			status.Text = "Point "..getgenv().STEP
+			local char, hrp, hum = getChar()
 
-		for _,s in ipairs(data.data) do
-			if s.id ~= game.JobId and not tried[s.id] and s.playing < s.maxPlayers then
-				tried[s.id] = true
-				local ok = pcall(function()
-					TeleportService:TeleportToPlaceInstance(placeId, s.id, player)
-				end)
-				if ok then return end
+			hrp.Anchored = true
+			hrp.CFrame = CFrame.new(POINTS[getgenv().STEP])
+
+			local ok = waitCheckpoint(hrp, hum, POINTS[getgenv().STEP])
+			hrp.Anchored = false
+
+			if ok then
+				getgenv().STEP += 1
+			else
+				player.CharacterAdded:Wait()
 			end
 		end
-		task.wait(1.5)
-	end
-end
 
--- ========= MAIN =========
-task.spawn(function()
-	while getgenv().STEP <= #POINTS do
-		status.Text = "📍 Point "..getgenv().STEP
-		local char, hrp, hum = getChar()
-
-		noclip(char)
-		hrp.CFrame = CFrame.new(POINTS[getgenv().STEP])
-		freeze(hrp)
-
-		local ok = waitCheckpoint(hrp, hum, POINTS[getgenv().STEP])
-		unfreeze(hrp)
-
-		if ok then
-			getgenv().STEP += 1
-		else
-			player.CharacterAdded:Wait()
-		end
-	end
-
-	status.Text = "✅ COMPLETED\n🔄 Switching server..."
-	getgenv().STEP = nil
-	task.wait(1)
-	serverHop()
+		status.Text = "Rejoining..."
+		getgenv().STEP = nil
+		task.wait(1)
+		TeleportService:Teleport(game.PlaceId, player)
+	end)
 end)
