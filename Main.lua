@@ -8,20 +8,18 @@ local Char = Player.Character or Player.CharacterAdded:Wait()
 local HRP = Char:WaitForChild("HumanoidRootPart")
 local Humanoid = Char:WaitForChild("Humanoid")
 
--- ===============================================
--- ĐIỀN TỌA ĐỘ VÀO ĐÂY
--- ===============================================
+-- DANH SÁCH TỌA ĐỘ
 local waypoints = {
-	{name = "Point A", pos = Vector3.new(425, -12, -338.5)},  -- Thay số 0 bằng tọa độ thực
-	{name = "Point B", pos = Vector3.new(1134, 3.88, 530.34)},  -- Thay số 0 bằng tọa độ thực
-	{name = "Point C", pos = Vector3.new(2572.7, -8.17, -337.98)}   -- Thay số 0 bằng tọa độ thực
+	{name = "Point A", pos = Vector3.new(424, -14, -337.25)},
+	{name = "Point B", pos = Vector3.new(1132.36, 3.88, 531.31)},
+	{name = "Point C", pos = Vector3.new(2571.35, -7.7, -333.7)}
 }
--- ===============================================
 
 -- STATE
 local currentIndex = 1
 local isRunning = false
-local FlySpeed = 150 -- Tốc độ bay
+local FlySpeed = 200 -- Tốc độ bay cao (8/10)
+local spinSpeed = 5 -- Tốc độ xoay nhân vật
 
 -- BODY VELOCITY & GYRO
 local bv = Instance.new("BodyVelocity")
@@ -34,7 +32,7 @@ bg.P = 9e4
 
 -- FUNCTION RANDOM WAIT TIME
 local function getRandomWaitTime()
-	return math.random(50, 100) / 100 -- Random từ 0.5 đến 1.0 giây
+	return math.random(50, 100) / 100
 end
 
 -- FUNCTION BẬT NOCLIP
@@ -56,22 +54,18 @@ local function disableNoclip()
 end
 
 -- FUNCTION BAY ĐẾN VỊ TRÍ
-local function flyToPosition(targetPos)
+local function flyToPosition(targetPos, speed)
 	if not HRP or not HRP.Parent then
 		return false
 	end
 	
-	-- Bật noclip
 	enableNoclip()
-	
-	-- Gắn BodyVelocity và BodyGyro
 	bv.Parent = HRP
 	bg.Parent = HRP
 	Humanoid:ChangeState(Enum.HumanoidStateType.Physics)
 	
-	-- Bay đến vị trí
 	local startTime = tick()
-	local timeout = 30 -- 30 giây timeout
+	local timeout = 60
 	
 	while isRunning do
 		if not HRP or not HRP.Parent then
@@ -80,23 +74,18 @@ local function flyToPosition(targetPos)
 		
 		local distance = (HRP.Position - targetPos).Magnitude
 		
-		-- Đã đến nơi (trong vòng 5 studs)
-		if distance < 5 then
+		if distance < 3 then
 			bv.Velocity = Vector3.zero
 			return true
 		end
 		
-		-- Timeout
 		if tick() - startTime > timeout then
-			print("Timeout while flying to " .. tostring(targetPos))
 			bv.Velocity = Vector3.zero
 			return false
 		end
 		
-		-- Tính hướng bay
 		local direction = (targetPos - HRP.Position).Unit
-		bv.Velocity = direction * FlySpeed
-		bg.CFrame = CFrame.new(HRP.Position, targetPos)
+		bv.Velocity = direction * speed
 		
 		task.wait()
 	end
@@ -122,44 +111,60 @@ local function startAutoRun()
 	
 	autoRunCoroutine = task.spawn(function()
 		while isRunning and currentIndex <= #waypoints do
-			-- Kiểm tra xem character còn tồn tại không
 			if not HRP or not HRP.Parent then
-				print("Waiting for character to respawn...")
 				task.wait(0.5)
 				continue
 			end
 			
 			local waypoint = waypoints[currentIndex]
-			print("Flying to " .. waypoint.name .. ": " .. tostring(waypoint.pos))
+			print("Going to " .. waypoint.name)
 			
-			-- Bay đến vị trí (tự động bay từ dưới lên)
-			local success = flyToPosition(waypoint.pos)
+			-- BƯỚC 1: Bay xuống dưới sàn (Y = -50)
+			local underFloor = Vector3.new(HRP.Position.X, -50, HRP.Position.Z)
+			print("Step 1: Flying under floor...")
+			local success = flyToPosition(underFloor, FlySpeed)
 			
 			if not success then
-				print("Failed to reach " .. waypoint.name .. ", retrying...")
+				task.wait(1)
+				continue
+			end
+			
+			-- BƯỚC 2: Bay ngang đến dưới chân điểm đích (X, -50, Z)
+			local underTarget = Vector3.new(waypoint.pos.X, -50, waypoint.pos.Z)
+			print("Step 2: Flying to under target...")
+			success = flyToPosition(underTarget, FlySpeed)
+			
+			if not success then
+				task.wait(1)
+				continue
+			end
+			
+			-- BƯỚC 3: Bay thẳng lên điểm đích
+			print("Step 3: Flying up to target...")
+			success = flyToPosition(waypoint.pos, FlySpeed)
+			
+			if not success then
 				task.wait(1)
 				continue
 			end
 			
 			print("Reached " .. waypoint.name)
 			
-			-- Dừng bay và đứng im
+			-- Dừng bay
 			stopFlying()
 			
-			-- Đợi random 0.5-1.0 giây
+			-- Đợi random
 			local waitTime = getRandomWaitTime()
-			print("Waiting " .. string.format("%.2f", waitTime) .. " seconds...")
 			task.wait(waitTime)
 			
-			-- Chuyển sang điểm tiếp theo
+			-- Chuyển điểm tiếp theo
 			currentIndex = currentIndex + 1
-			print("Moving to next waypoint. Current index: " .. currentIndex)
 		end
 		
-		-- Hoàn thành tất cả waypoints
+		-- Hoàn thành
 		if currentIndex > #waypoints and isRunning then
 			print("All waypoints completed! Switching server...")
-			statusLabel.Text = "✅ COMPLETED!\n🔄 Switching server..."
+			statusLabel.Text = "✅ DONE"
 			task.wait(1)
 			
 			-- Chuyển server
@@ -169,11 +174,12 @@ local function startAutoRun()
 			
 			if not success then
 				warn("Failed to switch server: " .. tostring(err))
-				statusLabel.Text = "❌ Switch server failed!\nTry manually"
+				statusLabel.Text = "❌ Failed"
 			end
 		end
 		
 		isRunning = false
+		toggleBtn.Text = "▶"
 	end)
 end
 
@@ -186,116 +192,50 @@ local function stopAutoRun()
 	end
 end
 
--- GUI
+-- GUI NHỎ GỌN
 local gui = Instance.new("ScreenGui", Player.PlayerGui)
 gui.Name = "AutoWaypointGUI"
 gui.ResetOnSpawn = false
 
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(300, 200)
-frame.Position = UDim2.fromScale(0.35, 0.35)
-frame.BackgroundColor3 = Color3.fromRGB(15, 5, 30)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
+local toggleBtn = Instance.new("TextButton", gui)
+toggleBtn.Size = UDim2.fromOffset(50, 50)
+toggleBtn.Position = UDim2.fromScale(0.9, 0.1)
+toggleBtn.Text = "▶"
+toggleBtn.TextSize = 24
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.BorderSizePixel = 0
 
--- GRADIENT BACKGROUND
-local gradient = Instance.new("UIGradient", frame)
-gradient.Color = ColorSequence.new{
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 0, 50)),
-	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50, 0, 100)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(75, 0, 150))
-}
-gradient.Rotation = 45
+local corner = Instance.new("UICorner", toggleBtn)
+corner.CornerRadius = UDim.new(0.3, 0)
 
--- BORDER GLOW
-local border = Instance.new("UIStroke", frame)
-border.Color = Color3.fromRGB(150, 50, 255)
-border.Thickness = 3
-border.Transparency = 0
+local stroke = Instance.new("UIStroke", toggleBtn)
+stroke.Color = Color3.fromRGB(255, 255, 255)
+stroke.Thickness = 2
 
--- Hiệu ứng glow cho border
-task.spawn(function()
-	while true do
-		for i = 0, 100 do
-			border.Color = Color3.fromHSV(i/100, 1, 1)
-			task.wait(0.05)
-		end
-	end
-end)
-
--- CORNER RADIUS
-local corner = Instance.new("UICorner", frame)
-corner.CornerRadius = UDim.new(0, 15)
-
--- LOGO/TITLE
-local logo = Instance.new("TextLabel", frame)
-logo.Size = UDim2.fromOffset(300, 70)
-logo.Position = UDim2.fromOffset(0, 0)
-logo.Text = "⭐ HUNGDAO9999 ⭐"
-logo.TextColor3 = Color3.fromRGB(255, 255, 255)
-logo.BackgroundColor3 = Color3.fromRGB(10, 0, 30)
-logo.BackgroundTransparency = 0.3
-logo.Font = Enum.Font.GothamBold
-logo.TextSize = 28
-logo.BorderSizePixel = 0
-
-local logoCorner = Instance.new("UICorner", logo)
-logoCorner.CornerRadius = UDim.new(0, 15)
-
--- Gradient cho logo
-local logoGradient = Instance.new("UIGradient", logo)
-logoGradient.Color = ColorSequence.new{
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 255)),
-	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 200, 255)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 50, 255))
-}
-
--- Hiệu ứng chữ nhấp nháy
-task.spawn(function()
-	while true do
-		for i = 0, 360, 5 do
-			logoGradient.Rotation = i
-			task.wait(0.03)
-		end
-	end
-end)
-
--- SUBTITLE
-local subtitle = Instance.new("TextLabel", frame)
-subtitle.Size = UDim2.fromOffset(280, 25)
-subtitle.Position = UDim2.fromOffset(10, 75)
-subtitle.Text = "✨ AUTO FLY WAYPOINT ✨"
-subtitle.TextColor3 = Color3.fromRGB(200, 150, 255)
-subtitle.BackgroundTransparency = 1
-subtitle.Font = Enum.Font.GothamBold
-subtitle.TextSize = 14
-
--- STATUS PANEL
-local statusPanel = Instance.new("Frame", frame)
-statusPanel.Size = UDim2.fromOffset(280, 90)
-statusPanel.Position = UDim2.fromOffset(10, 105)
-statusPanel.BackgroundColor3 = Color3.fromRGB(20, 0, 40)
-statusPanel.BorderSizePixel = 0
-
-local statusCorner = Instance.new("UICorner", statusPanel)
-statusCorner.CornerRadius = UDim.new(0, 10)
-
-local statusStroke = Instance.new("UIStroke", statusPanel)
-statusStroke.Color = Color3.fromRGB(100, 50, 200)
-statusStroke.Thickness = 2
-
-local statusLabel = Instance.new("TextLabel", statusPanel)
-statusLabel.Size = UDim2.fromOffset(270, 80)
-statusLabel.Position = UDim2.fromOffset(5, 5)
-statusLabel.TextWrapped = true
-statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-statusLabel.TextYAlignment = Enum.TextYAlignment.Center
+-- Status label nhỏ
+local statusLabel = Instance.new("TextLabel", gui)
+statusLabel.Size = UDim2.fromOffset(100, 30)
+statusLabel.Position = UDim2.new(0.9, -25, 0.1, 55)
+statusLabel.Text = "0/" .. #waypoints
+statusLabel.TextSize = 14
+statusLabel.Font = Enum.Font.GothamBold
 statusLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Font = Enum.Font.GothamBold
-statusLabel.TextSize = 14
-statusLabel.Text = "🚀 Starting...\nProgress: 0/" .. #waypoints
+
+-- TOGGLE BUTTON
+toggleBtn.MouseButton1Click:Connect(function()
+	if isRunning then
+		stopAutoRun()
+		toggleBtn.Text = "▶"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		startAutoRun()
+		toggleBtn.Text = "⏸"
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	end
+end)
 
 -- NOCLIP LIÊN TỤC KHI BAY
 RunService.Stepped:Connect(function()
@@ -304,13 +244,21 @@ RunService.Stepped:Connect(function()
 	end
 end)
 
--- XỬ LÝ KHI CHẾT (RESPAWN)
+-- XOAY NHÂN VẬT LIÊN TỤC
+local rotationAngle = 0
+RunService.RenderStepped:Connect(function(dt)
+	if isRunning and HRP and HRP.Parent then
+		rotationAngle = rotationAngle + (spinSpeed * dt)
+		bg.CFrame = CFrame.Angles(0, math.rad(rotationAngle * 50), 0)
+	end
+end)
+
+-- XỬ LÝ KHI CHẾT
 Player.CharacterAdded:Connect(function(newChar)
 	Char = newChar
 	HRP = Char:WaitForChild("HumanoidRootPart")
 	Humanoid = Char:WaitForChild("Humanoid")
 	
-	-- Tạo lại BodyVelocity và BodyGyro
 	bv = Instance.new("BodyVelocity")
 	bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
 	bv.Velocity = Vector3.zero
@@ -319,36 +267,18 @@ Player.CharacterAdded:Connect(function(newChar)
 	bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
 	bg.P = 9e4
 	
-	print("Character respawned. Continuing from index: " .. currentIndex)
-	print("isRunning: " .. tostring(isRunning))
+	print("Respawned. Continuing from: " .. currentIndex)
 end)
 
--- UPDATE STATUS REAL-TIME
+-- UPDATE STATUS
 RunService.RenderStepped:Connect(function()
 	if isRunning and currentIndex <= #waypoints then
-		if HRP and HRP.Parent then
-			local wp = waypoints[currentIndex]
-			local distance = (HRP.Position - wp.pos).Magnitude
-			
-			statusLabel.Text = string.format(
-				"✈️ FLYING...\nProgress: %d/%d\n🎯 %s\n📏 %.1f studs",
-				currentIndex - 1,
-				#waypoints,
-				wp.name,
-				distance
-			)
-		end
+		statusLabel.Text = (currentIndex - 1) .. "/" .. #waypoints
 	elseif currentIndex > #waypoints then
-		statusLabel.Text = "✅ ALL COMPLETED!\n🔄 Switching server..."
+		statusLabel.Text = "✅ DONE"
+	else
+		statusLabel.Text = "0/" .. #waypoints
 	end
 end)
 
-print("🌟 Auto Fly Waypoint Script loaded! 🌟")
-print("👑 Created by HungDao9999 👑")
-print("Waypoints: " .. #waypoints)
-
--- TỰ ĐỘNG BẮT ĐẦU KHI LOAD SCRIPT
-task.wait(0.5)
-print("🚀 Auto-starting...")
-statusLabel.Text = "🚀 Starting automation...\nPlease wait..."
-startAutoRun()
+print("🌟 Auto Waypoint loaded! 🌟")
