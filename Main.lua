@@ -28,6 +28,8 @@ local moneyBlocksCollected = 0
 -- MONEY EVENT DETECTION
 local isMoneyEventActive = false
 local eventCheckInterval = 5 -- Kiểm tra mỗi 5 giây
+local eventTimeRemaining = "N/A"
+local lastScreenBrightness = 1
 
 -- BODY VELOCITY & GYRO
 local bv = Instance.new("BodyVelocity")
@@ -44,7 +46,7 @@ gui.Name = "AutoWaypointGUI"
 gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(180, 100)
+frame.Size = UDim2.fromOffset(180, 120)
 frame.Position = UDim2.fromScale(0.42, 0.05)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 frame.BorderSizePixel = 0
@@ -89,23 +91,67 @@ eventStatusLabel.Font = Enum.Font.Gotham
 eventStatusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
 eventStatusLabel.BackgroundTransparency = 1
 
+local countdownLabel = Instance.new("TextLabel", frame)
+countdownLabel.Size = UDim2.fromOffset(160, 18)
+countdownLabel.Position = UDim2.fromOffset(10, 94)
+countdownLabel.Text = "Time: N/A"
+countdownLabel.TextSize = 10
+countdownLabel.Font = Enum.Font.GothamMedium
+countdownLabel.TextColor3 = Color3.fromRGB(150, 220, 255)
+countdownLabel.BackgroundTransparency = 1
+
 -- FUNCTIONS
+
+-- Phát hiện màn hình đen khi sự kiện bắt đầu
+local function detectScreenBlackout()
+	local lighting = game:GetService("Lighting")
+	local currentBrightness = lighting.Brightness
+	
+	-- Phát hiện độ sáng giảm đột ngột (màn hình đen)
+	if currentBrightness < 0.2 and lastScreenBrightness > 0.5 then
+		print("🎬 Screen blackout detected! Money Event starting...")
+		lastScreenBrightness = currentBrightness
+		return true
+	end
+	
+	lastScreenBrightness = currentBrightness
+	return false
+end
 
 -- Kiểm tra xem Money Event có đang diễn ra không
 local function checkMoneyEvent()
+	-- Kiểm tra blackout trước
+	if detectScreenBlackout() then
+		isMoneyEventActive = true
+		eventTimeRemaining = "Starting..."
+		return true
+	end
+	
 	-- Tìm UI hiển thị sự kiện trong PlayerGui
 	local playerGui = Player:WaitForChild("PlayerGui")
 	
 	-- Tìm các UI có thể chứa thông tin Money Event
 	for _, gui in pairs(playerGui:GetDescendants()) do
 		if gui:IsA("TextLabel") or gui:IsA("TextButton") then
-			local text = gui.Text:lower()
+			local text = gui.Text
+			local textLower = text:lower()
+			
 			-- Kiểm tra nội dung có chứa "money event" hoặc "money block"
-			if text:find("money event") or text:find("money block") then
-				-- Kiểm tra xem có countdown không (VD: "40:21", "11:24")
-				if text:find("%d+:%d+") then
+			if textLower:find("money event") or textLower:find("money block") then
+				-- Tìm countdown timer (VD: "40:21", "11:24")
+				local timeMatch = text:match("%d+:%d+")
+				if timeMatch then
 					isMoneyEventActive = true
+					eventTimeRemaining = timeMatch
 					return true
+				end
+			end
+			
+			-- Tìm riêng countdown ở bất kỳ TextLabel nào
+			if textLower:find("event") then
+				local timeMatch = text:match("%d+:%d+")
+				if timeMatch then
+					eventTimeRemaining = timeMatch
 				end
 			end
 		end
@@ -113,6 +159,7 @@ local function checkMoneyEvent()
 	
 	-- Nếu không tìm thấy, coi như event không active
 	isMoneyEventActive = false
+	eventTimeRemaining = "N/A"
 	return false
 end
 
@@ -498,6 +545,15 @@ RunService.RenderStepped:Connect(function()
 		eventStatusLabel.Text = "Event: ✗ Inactive"
 		eventStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
 	end
+	
+	-- Cập nhật countdown
+	if eventTimeRemaining and eventTimeRemaining ~= "N/A" then
+		countdownLabel.Text = "⏱️ " .. eventTimeRemaining
+		countdownLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
+	else
+		countdownLabel.Text = "Time: Waiting..."
+		countdownLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+	end
 end)
 
 -- KIỂM TRA SỰ KIỆN ĐỊNH KỲ
@@ -505,6 +561,31 @@ task.spawn(function()
 	while true do
 		checkMoneyEvent()
 		task.wait(eventCheckInterval)
+	end
+end)
+
+-- GIÁM SÁT MÀN HÌNH ĐEN LIÊN TỤC
+task.spawn(function()
+	while true do
+		if detectScreenBlackout() then
+			print("🎬 Blackout detected! Map is changing - Money Event starting!")
+			
+			-- Đợi màn hình sáng lại
+			task.wait(3)
+			
+			-- Kiểm tra event
+			if checkMoneyEvent() then
+				print("✓ Money Event confirmed after blackout!")
+				
+				-- Nếu chưa chạy, tự động bắt đầu
+				if not isRunning then
+					task.wait(2)
+					print("Auto-starting after event detection...")
+					startAutoRun()
+				end
+			end
+		end
+		task.wait(0.5) -- Kiểm tra thường xuyên hơn
 	end
 end)
 
