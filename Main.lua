@@ -30,40 +30,88 @@ local bg = Instance.new("BodyGyro")
 bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
 bg.P = 9e4
 
--- GUI
+-- GUI GALAXY STYLE
 local gui = Instance.new("ScreenGui", Player.PlayerGui)
 gui.Name = "AutoWaypointGUI"
 gui.ResetOnSpawn = false
 
-local toggleBtn = Instance.new("TextButton", gui)
-toggleBtn.Size = UDim2.fromOffset(50, 50)
-toggleBtn.Position = UDim2.fromScale(0.9, 0.1)
-toggleBtn.Text = "▶"
-toggleBtn.TextSize = 24
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.fromOffset(200, 120)
+frame.Position = UDim2.fromScale(0.4, 0.1)
+frame.BackgroundColor3 = Color3.fromRGB(15, 5, 30)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+
+local gradient = Instance.new("UIGradient", frame)
+gradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 0, 50)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50, 0, 100)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(75, 0, 150))
+}
+gradient.Rotation = 45
+
+local border = Instance.new("UIStroke", frame)
+border.Color = Color3.fromRGB(150, 50, 255)
+border.Thickness = 3
+
+task.spawn(function()
+	while true do
+		for i = 0, 100 do
+			border.Color = Color3.fromHSV(i/100, 1, 1)
+			task.wait(0.05)
+		end
+	end
+end)
+
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 15)
+
+local toggleBtn = Instance.new("TextButton", frame)
+toggleBtn.Size = UDim2.fromOffset(180, 60)
+toggleBtn.Position = UDim2.fromOffset(10, 10)
+toggleBtn.Text = "⭐ HUNGDAO9999 ⭐"
+toggleBtn.TextSize = 18
 toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-toggleBtn.TextColor3 = Color3.new(1, 1, 1)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(10, 0, 30)
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.BorderSizePixel = 0
 
-local corner = Instance.new("UICorner", toggleBtn)
-corner.CornerRadius = UDim.new(0.3, 0)
+local btnCorner = Instance.new("UICorner", toggleBtn)
+btnCorner.CornerRadius = UDim.new(0, 10)
 
-local stroke = Instance.new("UIStroke", toggleBtn)
-stroke.Color = Color3.fromRGB(255, 255, 255)
-stroke.Thickness = 2
+local btnGradient = Instance.new("UIGradient", toggleBtn)
+btnGradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 255)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 200, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 50, 255))
+}
 
-local statusLabel = Instance.new("TextLabel", gui)
-statusLabel.Size = UDim2.fromOffset(100, 30)
-statusLabel.Position = UDim2.new(0.9, -25, 0.1, 55)
-statusLabel.Text = "0/" .. #waypoints
+task.spawn(function()
+	while true do
+		for i = 0, 360, 5 do
+			btnGradient.Rotation = i
+			task.wait(0.03)
+		end
+	end
+end)
+
+local statusLabel = Instance.new("TextLabel", frame)
+statusLabel.Size = UDim2.fromOffset(180, 35)
+statusLabel.Position = UDim2.fromOffset(10, 75)
+statusLabel.Text = "Status: OFF\n0/" .. #waypoints
 statusLabel.TextSize = 14
 statusLabel.Font = Enum.Font.GothamBold
 statusLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
-statusLabel.BackgroundTransparency = 1
+statusLabel.BackgroundColor3 = Color3.fromRGB(20, 0, 40)
+statusLabel.BorderSizePixel = 0
+
+local statusCorner = Instance.new("UICorner", statusLabel)
+statusCorner.CornerRadius = UDim.new(0, 8)
 
 -- FUNCTIONS
 local function getRandomWaitTime()
-	return math.random(50, 100) / 100
+	return math.random(150, 250) / 100  -- 1.5-2.5 giây
 end
 
 local function enableNoclip()
@@ -134,12 +182,12 @@ local autoRunCoroutine = nil
 
 local function startAutoRun()
 	isRunning = true
-	toggleBtn.Text = "⏸"
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	statusLabel.Text = "Status: RUNNING\n0/" .. #waypoints
 	
 	autoRunCoroutine = task.spawn(function()
 		while isRunning and currentIndex <= #waypoints do
 			if not HRP or not HRP.Parent then
+				print("Waiting for character...")
 				task.wait(0.5)
 				continue
 			end
@@ -147,20 +195,22 @@ local function startAutoRun()
 			local waypoint = waypoints[currentIndex]
 			print("Going to " .. waypoint.name)
 			
-			-- BƯỚC 1: Bay xuống dưới sàn
-			local underFloor = Vector3.new(HRP.Position.X, -50, HRP.Position.Z)
+			-- BƯỚC 1: Bay xuống dưới sàn (Y = -80)
+			local underFloor = Vector3.new(HRP.Position.X, -80, HRP.Position.Z)
 			local success = flyToPosition(underFloor, FlySpeed)
 			
-			if not success then
+			if not success and isRunning then
+				print("Step 1 failed, retrying...")
 				task.wait(1)
 				continue
 			end
 			
 			-- BƯỚC 2: Bay ngang đến dưới chân điểm đích
-			local underTarget = Vector3.new(waypoint.pos.X, -50, waypoint.pos.Z)
+			local underTarget = Vector3.new(waypoint.pos.X, -80, waypoint.pos.Z)
 			success = flyToPosition(underTarget, FlySpeed)
 			
-			if not success then
+			if not success and isRunning then
+				print("Step 2 failed, retrying...")
 				task.wait(1)
 				continue
 			end
@@ -168,7 +218,8 @@ local function startAutoRun()
 			-- BƯỚC 3: Bay thẳng lên điểm đích
 			success = flyToPosition(waypoint.pos, FlySpeed)
 			
-			if not success then
+			if not success and isRunning then
+				print("Step 3 failed, retrying...")
 				task.wait(1)
 				continue
 			end
@@ -177,30 +228,40 @@ local function startAutoRun()
 			stopFlying()
 			
 			local waitTime = getRandomWaitTime()
+			print("Waiting " .. string.format("%.2f", waitTime) .. " seconds...")
 			task.wait(waitTime)
 			
 			currentIndex = currentIndex + 1
+			print("Progress: " .. (currentIndex - 1) .. "/" .. #waypoints)
 		end
 		
 		-- Hoàn thành tất cả waypoints
 		if currentIndex > #waypoints and isRunning then
 			print("All waypoints completed! Switching server...")
-			statusLabel.Text = "✅ DONE"
-			task.wait(1)
+			statusLabel.Text = "Status: DONE\nSwitching..."
+			task.wait(2)
+			
+			local placeId = game.PlaceId
+			print("Attempting to teleport to PlaceId: " .. tostring(placeId))
 			
 			local success, err = pcall(function()
-				TeleportService:Teleport(game.PlaceId, Player)
+				TeleportService:Teleport(placeId, Player)
 			end)
 			
 			if not success then
 				warn("Failed to switch server: " .. tostring(err))
-				statusLabel.Text = "❌ Failed"
+				statusLabel.Text = "Status: ERROR\nFailed to switch"
+				
+				-- Thử lại sau 3 giây
+				task.wait(3)
+				pcall(function()
+					TeleportService:Teleport(placeId, Player)
+				end)
 			end
 		end
 		
 		isRunning = false
-		toggleBtn.Text = "▶"
-		toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+		statusLabel.Text = "Status: OFF\n" .. (currentIndex - 1) .. "/" .. #waypoints
 	end)
 end
 
@@ -210,8 +271,7 @@ local function stopAutoRun()
 	if autoRunCoroutine then
 		task.cancel(autoRunCoroutine)
 	end
-	toggleBtn.Text = "▶"
-	toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	statusLabel.Text = "Status: OFF\n" .. (currentIndex - 1) .. "/" .. #waypoints
 end
 
 -- TOGGLE BUTTON
@@ -259,13 +319,13 @@ end)
 -- UPDATE STATUS
 RunService.RenderStepped:Connect(function()
 	if isRunning and currentIndex <= #waypoints then
-		statusLabel.Text = (currentIndex - 1) .. "/" .. #waypoints
+		local progress = math.max(0, currentIndex - 1)
+		statusLabel.Text = "Status: RUNNING\n" .. progress .. "/" .. #waypoints
 	elseif currentIndex > #waypoints then
-		statusLabel.Text = "✅ DONE"
-	else
-		statusLabel.Text = "0/" .. #waypoints
+		statusLabel.Text = "Status: DONE\n" .. #waypoints .. "/" .. #waypoints
 	end
 end)
 
-print("🌟 Auto Waypoint loaded! 🌟")
-print("Click the button to start!")
+print("🌟 Auto Waypoint Galaxy loaded! 🌟")
+print("Click HUNGDAO9999 button to start!")
+print("Waypoints: " .. #waypoints)
