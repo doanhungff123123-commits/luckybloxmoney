@@ -2,6 +2,7 @@
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
 
 local Player = Players.LocalPlayer
 local Char = Player.Character or Player.CharacterAdded:Wait()
@@ -18,10 +19,15 @@ local waypoints = {
 -- STATE
 local currentIndex = 1
 local isRunning = false
-local FlySpeed = 200
+local FlySpeed = 400 -- TĂNG GẤP ĐÔI TỐC ĐỘ (từ 200 lên 400)
 local spinSpeed = 5
 local waitTime = 2
-local arrivalThreshold = 2 -- Khoảng cách coi như đã đến
+local arrivalThreshold = 2
+local moneyBlocksCollected = 0
+
+-- MONEY EVENT DETECTION
+local isMoneyEventActive = false
+local eventCheckInterval = 5 -- Kiểm tra mỗi 5 giây
 
 -- BODY VELOCITY & GYRO
 local bv = Instance.new("BodyVelocity")
@@ -38,7 +44,7 @@ gui.Name = "AutoWaypointGUI"
 gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(160, 80)
+frame.Size = UDim2.fromOffset(180, 100)
 frame.Position = UDim2.fromScale(0.42, 0.05)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 frame.BorderSizePixel = 0
@@ -53,9 +59,9 @@ border.Color = Color3.fromRGB(60, 60, 80)
 border.Thickness = 2
 
 local toggleBtn = Instance.new("TextButton", frame)
-toggleBtn.Size = UDim2.fromOffset(140, 35)
+toggleBtn.Size = UDim2.fromOffset(160, 35)
 toggleBtn.Position = UDim2.fromOffset(10, 10)
-toggleBtn.Text = "HUNGDAO9999"
+toggleBtn.Text = "MONEY EVENT BOT"
 toggleBtn.TextSize = 14
 toggleBtn.Font = Enum.Font.GothamBold
 toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 255)
@@ -66,7 +72,7 @@ local btnCorner = Instance.new("UICorner", toggleBtn)
 btnCorner.CornerRadius = UDim.new(0, 8)
 
 local statusLabel = Instance.new("TextLabel", frame)
-statusLabel.Size = UDim2.fromOffset(140, 20)
+statusLabel.Size = UDim2.fromOffset(160, 20)
 statusLabel.Position = UDim2.fromOffset(10, 50)
 statusLabel.Text = "OFF • 0/3"
 statusLabel.TextSize = 12
@@ -74,7 +80,81 @@ statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
 statusLabel.BackgroundTransparency = 1
 
+local eventStatusLabel = Instance.new("TextLabel", frame)
+eventStatusLabel.Size = UDim2.fromOffset(160, 20)
+eventStatusLabel.Position = UDim2.fromOffset(10, 72)
+eventStatusLabel.Text = "Event: Checking..."
+eventStatusLabel.TextSize = 11
+eventStatusLabel.Font = Enum.Font.Gotham
+eventStatusLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+eventStatusLabel.BackgroundTransparency = 1
+
 -- FUNCTIONS
+
+-- Kiểm tra xem Money Event có đang diễn ra không
+local function checkMoneyEvent()
+	-- Tìm UI hiển thị sự kiện trong PlayerGui
+	local playerGui = Player:WaitForChild("PlayerGui")
+	
+	-- Tìm các UI có thể chứa thông tin Money Event
+	for _, gui in pairs(playerGui:GetDescendants()) do
+		if gui:IsA("TextLabel") or gui:IsA("TextButton") then
+			local text = gui.Text:lower()
+			-- Kiểm tra nội dung có chứa "money event" hoặc "money block"
+			if text:find("money event") or text:find("money block") then
+				-- Kiểm tra xem có countdown không (VD: "40:21", "11:24")
+				if text:find("%d+:%d+") then
+					isMoneyEventActive = true
+					return true
+				end
+			end
+		end
+	end
+	
+	-- Nếu không tìm thấy, coi như event không active
+	isMoneyEventActive = false
+	return false
+end
+
+-- Hiển thị thông báo thu thập Money Block
+local function showMoneyNotification(amount)
+	moneyBlocksCollected = moneyBlocksCollected + 1
+	
+	-- Tạo thông báo trên đầu nhân vật
+	local billboardGui = Instance.new("BillboardGui")
+	billboardGui.Parent = HRP
+	billboardGui.Size = UDim2.new(0, 200, 0, 50)
+	billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+	billboardGui.AlwaysOnTop = true
+	
+	local textLabel = Instance.new("TextLabel", billboardGui)
+	textLabel.Size = UDim2.new(1, 0, 1, 0)
+	textLabel.BackgroundTransparency = 1
+	textLabel.Text = "💰 +" .. amount .. " Money Block!"
+	textLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+	textLabel.TextSize = 20
+	textLabel.Font = Enum.Font.GothamBold
+	textLabel.TextStrokeTransparency = 0
+	textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	
+	-- Animation: Bay lên và mờ dần
+	task.spawn(function()
+		for i = 1, 30 do
+			billboardGui.StudsOffset = billboardGui.StudsOffset + Vector3.new(0, 0.05, 0)
+			textLabel.TextTransparency = i / 30
+			textLabel.TextStrokeTransparency = i / 30
+			task.wait(0.03)
+		end
+		billboardGui:Destroy()
+	end)
+	
+	-- Thông báo hệ thống
+	StarterGui:SetCore("SendNotification", {
+		Title = "💰 Money Block Collected!";
+		Text = "+" .. amount .. " Coins | Total: " .. moneyBlocksCollected;
+		Duration = 3;
+	})
+end
 
 local function enableNoclip()
 	for _, v in pairs(Char:GetDescendants()) do
@@ -201,12 +281,36 @@ end
 local autoRunCoroutine = nil
 
 local function startAutoRun()
+	-- Kiểm tra sự kiện trước khi bắt đầu
+	if not checkMoneyEvent() then
+		StarterGui:SetCore("SendNotification", {
+			Title = "⚠️ Money Event Not Active!";
+			Text = "Waiting for Money Event to start...";
+			Duration = 5;
+		})
+		statusLabel.Text = "Waiting for event..."
+		return
+	end
+	
 	isRunning = true
 	toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
 	statusLabel.TextColor3 = Color3.fromRGB(100, 255, 150)
 	
 	autoRunCoroutine = task.spawn(function()
 		while isRunning and currentIndex <= #waypoints do
+			-- Kiểm tra sự kiện định kỳ
+			if not checkMoneyEvent() then
+				print("Money Event ended! Stopping...")
+				statusLabel.Text = "Event ended!"
+				StarterGui:SetCore("SendNotification", {
+					Title = "🛑 Money Event Ended";
+					Text = "Bot stopped. Collected: " .. moneyBlocksCollected;
+					Duration = 5;
+				})
+				stopAutoRun()
+				break
+			end
+			
 			if not HRP or not HRP.Parent then
 				print("Waiting for character...")
 				task.wait(0.5)
@@ -264,8 +368,14 @@ local function startAutoRun()
 				continue
 			end
 			
-			-- ĐÃ ĐẾN - GIỮ VỊ TRÍ 2 GIÂY
-			print("Reached " .. waypoint.name .. "! Holding position...")
+			-- ĐÃ ĐẾN - HIỂN THỊ THÔNG BÁO THU THẬP
+			print("Reached " .. waypoint.name .. "! Collecting Money Block...")
+			
+			-- Random số tiền thu được (có thể tùy chỉnh)
+			local moneyAmount = math.random(15, 45)
+			showMoneyNotification(moneyAmount)
+			
+			-- Giữ vị trí
 			success = holdPosition(waypoint.pos, waitTime)
 			
 			if not success and isRunning then
@@ -283,7 +393,14 @@ local function startAutoRun()
 		-- Hoàn thành tất cả waypoints
 		if currentIndex > #waypoints and isRunning then
 			stopFlying()
-			print("All waypoints completed! Switching server...")
+			print("All waypoints completed! Total collected: " .. moneyBlocksCollected)
+			
+			StarterGui:SetCore("SendNotification", {
+				Title = "🎉 All Waypoints Complete!";
+				Text = "Collected " .. moneyBlocksCollected .. " Money Blocks! Switching server...";
+				Duration = 5;
+			})
+			
 			statusLabel.Text = "DONE • Switching..."
 			task.wait(2)
 			
@@ -298,7 +415,6 @@ local function startAutoRun()
 				warn("Failed to switch server: " .. tostring(err))
 				statusLabel.Text = "ERROR • Failed"
 				
-				-- Thử lại sau 3 giây
 				task.wait(3)
 				pcall(function()
 					TeleportService:Teleport(placeId, Player)
@@ -373,22 +489,48 @@ RunService.RenderStepped:Connect(function()
 	elseif currentIndex > #waypoints then
 		statusLabel.Text = "DONE • 3/3"
 	end
+	
+	-- Cập nhật trạng thái sự kiện
+	if isMoneyEventActive then
+		eventStatusLabel.Text = "Event: ✓ Active"
+		eventStatusLabel.TextColor3 = Color3.fromRGB(100, 255, 150)
+	else
+		eventStatusLabel.Text = "Event: ✗ Inactive"
+		eventStatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+	end
 end)
 
-print("🌟 Auto Waypoint loaded! 🌟")
-print("Waypoints: " .. #waypoints)
-
--- TỰ ĐỘNG BẬT SAU 7 GIÂY KHI JOIN SERVER
+-- KIỂM TRA SỰ KIỆN ĐỊNH KỲ
 task.spawn(function()
-	print("Script will auto-start in 7 seconds...")
-	statusLabel.Text = "Starting in 7s..."
+	while true do
+		checkMoneyEvent()
+		task.wait(eventCheckInterval)
+	end
+end)
+
+print("🌟 Money Event Auto Bot loaded! 🌟")
+print("Waypoints: " .. #waypoints)
+print("Speed: " .. FlySpeed .. " (DOUBLED)")
+
+-- TỰ ĐỘNG BẬT KHI CÓ SỰ KIỆN
+task.spawn(function()
+	print("Waiting for Money Event to start...")
+	statusLabel.Text = "Waiting for event..."
+	
+	-- Đợi cho đến khi sự kiện bắt đầu
+	while not checkMoneyEvent() do
+		task.wait(5)
+	end
+	
+	print("Money Event detected! Auto-starting in 7 seconds...")
+	statusLabel.Text = "Event found! Starting..."
 	
 	for i = 7, 1, -1 do
 		statusLabel.Text = "Auto start: " .. i .. "s"
 		task.wait(1)
 	end
 	
-	-- Bật tự động
-	print("Auto-starting script!")
+	-- Bắt tự động
+	print("Auto-starting bot!")
 	startAutoRun()
 end)
