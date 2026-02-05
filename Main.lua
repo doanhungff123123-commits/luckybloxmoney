@@ -1,9 +1,9 @@
-local HOLD_TIME = 1.5
+local HOLD_TIME = 2
 local CHECK_RADIUS = 3
 local POINTS = {
 	Vector3.new(424, -14, -337.25),
 	Vector3.new(1132.36, 1.56, 531.31),
-	Vector3.new(2571.35, -7.7, -33.7)
+	Vector3.new(2571.35, -7.7, -337.7)
 }
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
