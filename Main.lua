@@ -12,14 +12,15 @@ local Humanoid = Char:WaitForChild("Humanoid")
 local waypoints = {
 	{name = "Point A", pos = Vector3.new(424, -14, -337.25)},
 	{name = "Point B", pos = Vector3.new(1132.36, 1.56, 531.31)},
-	{name = "Point C", pos = Vector3.new(2571.35, -7.7, -33.7)}
+	{name = "Point C", pos = Vector3.new(2571.35, -7.7, -337.7)}
 }
 
 -- STATE
 local currentIndex = 1
 local isRunning = false
-local FlySpeed = 200
+local FlySpeed = 280
 local spinSpeed = 5
+local waitTime = 2 -- Thời gian chờ cứng 2 giây
 
 -- BODY VELOCITY & GYRO
 local bv = Instance.new("BodyVelocity")
@@ -30,89 +31,49 @@ local bg = Instance.new("BodyGyro")
 bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
 bg.P = 9e4
 
--- GUI GALAXY STYLE
+-- GUI ĐƠN GIẢN ĐẸP
 local gui = Instance.new("ScreenGui", Player.PlayerGui)
 gui.Name = "AutoWaypointGUI"
 gui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.fromOffset(200, 120)
-frame.Position = UDim2.fromScale(0.4, 0.1)
-frame.BackgroundColor3 = Color3.fromRGB(15, 5, 30)
+frame.Size = UDim2.fromOffset(160, 80)
+frame.Position = UDim2.fromScale(0.42, 0.05)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 
-local gradient = Instance.new("UIGradient", frame)
-gradient.Color = ColorSequence.new{
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 0, 50)),
-	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(50, 0, 100)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(75, 0, 150))
-}
-gradient.Rotation = 45
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 12)
 
 local border = Instance.new("UIStroke", frame)
-border.Color = Color3.fromRGB(150, 50, 255)
-border.Thickness = 3
-
-task.spawn(function()
-	while true do
-		for i = 0, 100 do
-			border.Color = Color3.fromHSV(i/100, 1, 1)
-			task.wait(0.05)
-		end
-	end
-end)
-
-local corner = Instance.new("UICorner", frame)
-corner.CornerRadius = UDim.new(0, 15)
+border.Color = Color3.fromRGB(60, 60, 80)
+border.Thickness = 2
 
 local toggleBtn = Instance.new("TextButton", frame)
-toggleBtn.Size = UDim2.fromOffset(180, 60)
+toggleBtn.Size = UDim2.fromOffset(140, 35)
 toggleBtn.Position = UDim2.fromOffset(10, 10)
-toggleBtn.Text = "⭐ HUNGDAO9999 ⭐"
-toggleBtn.TextSize = 18
+toggleBtn.Text = "HUNGDAO9999"
+toggleBtn.TextSize = 14
 toggleBtn.Font = Enum.Font.GothamBold
-toggleBtn.BackgroundColor3 = Color3.fromRGB(10, 0, 30)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 255)
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleBtn.BorderSizePixel = 0
 
 local btnCorner = Instance.new("UICorner", toggleBtn)
-btnCorner.CornerRadius = UDim.new(0, 10)
-
-local btnGradient = Instance.new("UIGradient", toggleBtn)
-btnGradient.Color = ColorSequence.new{
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 50, 255)),
-	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 200, 255)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 50, 255))
-}
-
-task.spawn(function()
-	while true do
-		for i = 0, 360, 5 do
-			btnGradient.Rotation = i
-			task.wait(0.03)
-		end
-	end
-end)
+btnCorner.CornerRadius = UDim.new(0, 8)
 
 local statusLabel = Instance.new("TextLabel", frame)
-statusLabel.Size = UDim2.fromOffset(180, 35)
-statusLabel.Position = UDim2.fromOffset(10, 75)
-statusLabel.Text = "Status: OFF\n0/" .. #waypoints
-statusLabel.TextSize = 14
-statusLabel.Font = Enum.Font.GothamBold
-statusLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
-statusLabel.BackgroundColor3 = Color3.fromRGB(20, 0, 40)
-statusLabel.BorderSizePixel = 0
-
-local statusCorner = Instance.new("UICorner", statusLabel)
-statusCorner.CornerRadius = UDim.new(0, 8)
+statusLabel.Size = UDim2.fromOffset(140, 20)
+statusLabel.Position = UDim2.fromOffset(10, 50)
+statusLabel.Text = "OFF • 0/3"
+statusLabel.TextSize = 12
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+statusLabel.BackgroundTransparency = 1
 
 -- FUNCTIONS
-local function getRandomWaitTime()
-	return math.random(150, 250) / 100  -- 1.5-2.5 giây
-end
 
 local function enableNoclip()
 	for _, v in pairs(Char:GetDescendants()) do
@@ -182,7 +143,8 @@ local autoRunCoroutine = nil
 
 local function startAutoRun()
 	isRunning = true
-	statusLabel.Text = "Status: RUNNING\n0/" .. #waypoints
+	toggleBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+	statusLabel.TextColor3 = Color3.fromRGB(100, 255, 150)
 	
 	autoRunCoroutine = task.spawn(function()
 		while isRunning and currentIndex <= #waypoints do
@@ -227,8 +189,8 @@ local function startAutoRun()
 			print("Reached " .. waypoint.name)
 			stopFlying()
 			
-			local waitTime = getRandomWaitTime()
-			print("Waiting " .. string.format("%.2f", waitTime) .. " seconds...")
+			-- Đợi 2 giây
+			print("Waiting 2 seconds...")
 			task.wait(waitTime)
 			
 			currentIndex = currentIndex + 1
@@ -238,7 +200,7 @@ local function startAutoRun()
 		-- Hoàn thành tất cả waypoints
 		if currentIndex > #waypoints and isRunning then
 			print("All waypoints completed! Switching server...")
-			statusLabel.Text = "Status: DONE\nSwitching..."
+			statusLabel.Text = "DONE • Switching..."
 			task.wait(2)
 			
 			local placeId = game.PlaceId
@@ -250,7 +212,7 @@ local function startAutoRun()
 			
 			if not success then
 				warn("Failed to switch server: " .. tostring(err))
-				statusLabel.Text = "Status: ERROR\nFailed to switch"
+				statusLabel.Text = "ERROR • Failed"
 				
 				-- Thử lại sau 3 giây
 				task.wait(3)
@@ -261,7 +223,8 @@ local function startAutoRun()
 		end
 		
 		isRunning = false
-		statusLabel.Text = "Status: OFF\n" .. (currentIndex - 1) .. "/" .. #waypoints
+		toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 255)
+		statusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
 	end)
 end
 
@@ -271,7 +234,9 @@ local function stopAutoRun()
 	if autoRunCoroutine then
 		task.cancel(autoRunCoroutine)
 	end
-	statusLabel.Text = "Status: OFF\n" .. (currentIndex - 1) .. "/" .. #waypoints
+	toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 120, 255)
+	statusLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+	statusLabel.Text = "OFF • " .. (currentIndex - 1) .. "/3"
 end
 
 -- TOGGLE BUTTON
@@ -320,12 +285,26 @@ end)
 RunService.RenderStepped:Connect(function()
 	if isRunning and currentIndex <= #waypoints then
 		local progress = math.max(0, currentIndex - 1)
-		statusLabel.Text = "Status: RUNNING\n" .. progress .. "/" .. #waypoints
+		statusLabel.Text = "RUNNING • " .. progress .. "/3"
 	elseif currentIndex > #waypoints then
-		statusLabel.Text = "Status: DONE\n" .. #waypoints .. "/" .. #waypoints
+		statusLabel.Text = "DONE • 3/3"
 	end
 end)
 
-print("🌟 Auto Waypoint Galaxy loaded! 🌟")
-print("Click HUNGDAO9999 button to start!")
+print("🌟 Auto Waypoint loaded! 🌟")
 print("Waypoints: " .. #waypoints)
+
+-- TỰ ĐỘNG BẬT SAU 7 GIÂY KHI JOIN SERVER
+task.spawn(function()
+	print("Script will auto-start in 7 seconds...")
+	statusLabel.Text = "Starting in 7s..."
+	
+	for i = 7, 1, -1 do
+		statusLabel.Text = "Auto start: " .. i .. "s"
+		task.wait(1)
+	end
+	
+	-- Bật tự động
+	print("Auto-starting script!")
+	startAutoRun()
+end)
