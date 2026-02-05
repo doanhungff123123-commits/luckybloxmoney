@@ -11,8 +11,8 @@ local Humanoid = Char:WaitForChild("Humanoid")
 -- DANH SÁCH TỌA ĐỘ
 local waypoints = {
 	{name = "Point A", pos = Vector3.new(424, -14, -337.25)},
-	{name = "Point B", pos = Vector3.new(1132.36, 3.88, 531.31)},
-	{name = "Point C", pos = Vector3.new(2571.35, -7.7, -333.7)}
+	{name = "Point B", pos = Vector3.new(1132.36, 1.56, 531.31)},
+	{name = "Point C", pos = Vector3.new(2571.35, -7.7, -33.7)}
 }
 
 -- STATE
